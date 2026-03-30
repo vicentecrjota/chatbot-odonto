@@ -1,8 +1,9 @@
 """Configurações carregadas de variáveis de ambiente."""
 
 from functools import lru_cache
+from typing import Optional
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,12 +15,14 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    supabase_url: str
-    supabase_key: SecretStr
-    openai_api_key: SecretStr
-    meta_verify_token: str
-    meta_app_secret: SecretStr
-    database_url: str
+    supabase_url: str = Field(validation_alias="SUPABASE_URL")
+    supabase_anon_key: SecretStr = Field(validation_alias="SUPABASE_ANON_KEY")
+    supabase_service_role_key: SecretStr = Field(validation_alias="SUPABASE_SERVICE_ROLE_KEY")
+    supabase_key: SecretStr | None = Field(default=None, validation_alias="SUPABASE_KEY")
+    openai_api_key: Optional[SecretStr] = None
+    meta_verify_token: Optional[str] = None
+    meta_app_secret: Optional[SecretStr] = None
+    database_url: Optional[str] = None
 
 
 @lru_cache
