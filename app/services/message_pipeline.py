@@ -9,6 +9,7 @@ from app.database import get_supabase_client
 from app.prompts.base_prompt import montar_prompt
 from app.services.conversation_service import carregar_historico, salvar_mensagens
 from app.services.llm_service import chamar_llm
+from app.services.patient_service import atualizar_contexto_paciente, carregar_contexto_paciente
 from app.services.rag_service import RagServiceError, buscar_documentos
 
 
@@ -118,7 +119,13 @@ def processar_mensagem(phone: str, message: str, clinic_id: str) -> str:
         # Se o RAG não estiver configurado (DATABASE_URL/OPENAI), seguimos sem contexto.
         docs_text = ""
 
-    system_prompt = montar_prompt(clinic) + docs_text
+    contexto_paciente = carregar_contexto_paciente(phone, clinic_id)
+    contexto_text = ""
+    if contexto_paciente:
+        linhas = "\n".join(f"- {k}: {v}" for k, v in contexto_paciente.items())
+        contexto_text = f"\n\n## Contexto do paciente\n{linhas}\n"
+
+    system_prompt = montar_prompt(clinic) + contexto_text + docs_text
 
     historico = carregar_historico(phone, clinic_id)
     history = historico + [
@@ -127,5 +134,6 @@ def processar_mensagem(phone: str, message: str, clinic_id: str) -> str:
 
     resposta = chamar_llm(system_prompt, history)
     salvar_mensagens(phone, clinic_id, message, resposta)
+    atualizar_contexto_paciente(phone, clinic_id, message, resposta)
     return resposta
 
