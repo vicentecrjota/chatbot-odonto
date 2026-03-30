@@ -12,6 +12,7 @@ from fastapi.responses import PlainTextResponse
 from app.core.config import get_settings
 from app.database import get_supabase_client
 from app.services.message_pipeline import processar_mensagem
+from app.services.meta_service import send_instagram_message, send_whatsapp_message
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +121,9 @@ async def receive_whatsapp_message(request: Request) -> dict:
                 None, processar_mensagem, phone, text, clinic_id
             )
             logger.info("Resposta gerada para %s: %s", phone, resposta)
-            # TODO: Etapa 3 — enviar resposta via Meta API (send_whatsapp_message)
+            await asyncio.get_event_loop().run_in_executor(
+                None, send_whatsapp_message, phone_number_id, phone, resposta
+            )
         except Exception:
             logger.exception("Erro ao processar mensagem de %s", phone)
 
@@ -165,7 +168,9 @@ async def receive_instagram_message(request: Request) -> dict:
                 None, processar_mensagem, sender_id, text, clinic_id
             )
             logger.info("Resposta gerada para %s: %s", sender_id, resposta)
-            # TODO: Etapa 3 — enviar resposta via Meta API (send_instagram_message)
+            await asyncio.get_event_loop().run_in_executor(
+                None, send_instagram_message, sender_id, resposta
+            )
         except Exception:
             logger.exception("Erro ao processar mensagem de %s", sender_id)
 
