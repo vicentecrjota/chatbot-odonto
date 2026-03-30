@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
 from app.core.config import get_settings
+from app.core.rate_limiter import rate_limiter
 from app.database import get_supabase_client
 from app.services.message_pipeline import processar_mensagem
 from app.services.meta_service import send_instagram_message, send_whatsapp_message
@@ -143,6 +144,10 @@ async def receive_whatsapp_message(request: Request) -> dict:
         return {"status": "ok"}
 
     for phone, text, phone_number_id in mensagens:
+        if not rate_limiter.is_allowed(phone):
+            logger.warning("Rate limit atingido para phone=%s", phone)
+            continue
+
         clinic_id = await asyncio.get_event_loop().run_in_executor(
             None, _clinic_id_by_whatsapp, phone_number_id
         )
@@ -190,6 +195,10 @@ async def receive_instagram_message(request: Request) -> dict:
         return {"status": "ok"}
 
     for sender_id, text, page_id in mensagens:
+        if not rate_limiter.is_allowed(sender_id):
+            logger.warning("Rate limit atingido para sender_id=%s", sender_id)
+            continue
+
         clinic_id = await asyncio.get_event_loop().run_in_executor(
             None, _clinic_id_by_instagram, page_id
         )
