@@ -129,7 +129,7 @@ def processar_mensagem(phone: str, message: str, clinic_id: str) -> str:
 
     historico = carregar_historico(phone, clinic_id)
     history = historico + [
-        {"role": "user", "content": f"Telefone do paciente: {phone}\nMensagem: {message}"},
+        {"role": "user", "content": message},
     ]
 
     resposta = chamar_llm(system_prompt, history)
