@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
+import json
 import logging
 from typing import Any
 
@@ -17,6 +20,37 @@ from app.services.meta_service import send_instagram_message, send_whatsapp_mess
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Signature validation
+# ---------------------------------------------------------------------------
+
+async def _verify_meta_signature(request: Request) -> None:
+    """Valida X-Hub-Signature-256 usando META_APP_SECRET."""
+    settings = get_settings()
+    if not settings.meta_app_secret:
+        # Se não configurado, ignora validação (útil em desenvolvimento)
+        logger.warning("META_APP_SECRET não configurado; assinatura não validada.")
+        return
+
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    if not signature.startswith("sha256="):
+        raise HTTPException(status_code=403, detail="Assinatura ausente ou inválida")
+
+    body = await request.body()
+    secret = settings.meta_app_secret.get_secret_value().encode()
+    expected = "sha256=" + hmac.new(secret, body, hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(signature, expected):
+        raise HTTPException(status_code=403, detail="Assinatura inválida")
+
+
+async def _parse_verified_json(request: Request) -> dict[str, Any]:
+    """Valida assinatura e retorna o body como dict."""
+    await _verify_meta_signature(request)
+    body_bytes = await request.body()
+    return json.loads(body_bytes)
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +135,7 @@ async def verify_whatsapp_webhook(
 
 @router.post("/webhook/whatsapp")
 async def receive_whatsapp_message(request: Request) -> dict:
-    body = await request.json()
+    body = await _parse_verified_json(request)
     logger.info("WhatsApp webhook received: %s", body)
 
     mensagens = _extract_whatsapp(body)
@@ -148,7 +182,7 @@ async def verify_instagram_webhook(
 
 @router.post("/webhook/instagram")
 async def receive_instagram_message(request: Request) -> dict:
-    body = await request.json()
+    body = await _parse_verified_json(request)
     logger.info("Instagram webhook received: %s", body)
 
     mensagens = _extract_instagram(body)
