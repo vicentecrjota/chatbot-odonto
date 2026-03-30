@@ -7,6 +7,7 @@ from typing import Any
 
 from app.database import get_supabase_client
 from app.prompts.base_prompt import montar_prompt
+from app.services.conversation_service import carregar_historico, salvar_mensagens
 from app.services.llm_service import chamar_llm
 from app.services.rag_service import RagServiceError, buscar_documentos
 
@@ -119,8 +120,12 @@ def processar_mensagem(phone: str, message: str, clinic_id: str) -> str:
 
     system_prompt = montar_prompt(clinic) + docs_text
 
-    history = [
+    historico = carregar_historico(phone, clinic_id)
+    history = historico + [
         {"role": "user", "content": f"Telefone do paciente: {phone}\nMensagem: {message}"},
     ]
-    return chamar_llm(system_prompt, history)
+
+    resposta = chamar_llm(system_prompt, history)
+    salvar_mensagens(phone, clinic_id, message, resposta)
+    return resposta
 
