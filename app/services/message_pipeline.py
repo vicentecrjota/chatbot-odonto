@@ -7,6 +7,7 @@ from typing import Any
 
 from app.database import get_supabase_client
 from app.prompts.base_prompt import montar_prompt
+from app.services.calendar_service import buscar_slots_disponiveis, criar_evento
 from app.services.conversation_service import carregar_historico, salvar_mensagens
 from app.services.llm_service import chamar_llm
 from app.services.patient_service import atualizar_contexto_paciente, carregar_contexto_paciente
@@ -125,7 +126,28 @@ def processar_mensagem(phone: str, message: str, clinic_id: str) -> str:
         linhas = "\n".join(f"- {k}: {v}" for k, v in contexto_paciente.items())
         contexto_text = f"\n\n## Contexto do paciente\n{linhas}\n"
 
-    system_prompt = montar_prompt(clinic) + contexto_text + docs_text
+    # Busca slots do Google Calendar se a clínica tiver calendário configurado
+    slots_text = ""
+    calendar_id = clinic.get("google_calendar_id")
+    if calendar_id:
+        try:
+            tz = "America/Sao_Paulo"
+            rag_config = clinic.get("rag_config") or {}
+            if isinstance(rag_config, dict):
+                tz = rag_config.get("business_hours", {}).get("timezone", tz)
+            slots = buscar_slots_disponiveis(calendar_id, timezone=tz, num_slots=2)
+            if slots:
+                opcoes = "\n".join(f"- Opção {i+1}: {s['label']} (start={s['start']}, end={s['end']})" for i, s in enumerate(slots))
+                slots_text = (
+                    "\n\n## Horários disponíveis (próximos slots livres)\n"
+                    "Use estes horários ao oferecer opções de agendamento. "
+                    "Quando o paciente confirmar um, use o start e end para criar o evento.\n"
+                    f"{opcoes}\n"
+                )
+        except Exception:
+            pass  # Segue sem slots se o calendário falhar
+
+    system_prompt = montar_prompt(clinic) + contexto_text + slots_text + docs_text
 
     historico = carregar_historico(phone, clinic_id)
     history = historico + [
@@ -133,6 +155,19 @@ def processar_mensagem(phone: str, message: str, clinic_id: str) -> str:
     ]
 
     resposta = chamar_llm(system_prompt, history)
+
+    # Se o LLM confirmou agendamento, tenta criar o evento
+    if calendar_id and "[AGENDAR:" in resposta:
+        try:
+            import re
+            m = re.search(r"\[AGENDAR:([^|]+)\|([^|]+)\|([^\]]+)\]", resposta)
+            if m:
+                start_iso, end_iso, procedure = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+                criar_evento(calendar_id, start_iso, end_iso, procedure, phone, tz)
+                resposta = re.sub(r"\[AGENDAR:[^\]]+\]", "", resposta).strip()
+        except Exception:
+            pass
+
     salvar_mensagens(phone, clinic_id, message, resposta)
     atualizar_contexto_paciente(phone, clinic_id, message, resposta)
     return resposta

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     meta_access_token: Optional[SecretStr] = None
     database_url: Optional[str] = None
     environment: str = "development"
+    google_credentials: Optional[str] = None
 
 
 @lru_cache

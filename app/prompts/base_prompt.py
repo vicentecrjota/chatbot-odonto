@@ -47,9 +47,19 @@ def montar_prompt(clinica: Any) -> str:
             "- Em emergências (dor intensa, sangramento persistente, trauma, febre alta, falta de ar): orientar a procurar pronto-socorro/UPA imediatamente.",
             "- Se não souber ou faltar informação: dizer claramente e oferecer encaminhar para atendimento humano.",
             "- Nunca inventar informações (procedimentos, preços, horários, políticas, resultados clínicos).",
-            "- Quando fizer perguntas, faça no máximo 1–2 perguntas por vez.",
+            "- Quando fizer perguntas, faça no máximo 1 pergunta por vez.",
         ]
     )
+
+    agendamento = """
+## Fluxo de agendamento (siga esta ordem exata)
+1. Quando o paciente quiser agendar: pergunte APENAS qual procedimento ou especialidade deseja.
+2. Após receber o procedimento: apresente as duas opções de horário disponíveis da seção "Horários disponíveis". Pergunte qual prefere.
+3. Quando o paciente confirmar um horário: confirme o agendamento e inclua no final da resposta (invisível ao paciente) a tag:
+   [AGENDAR:start_iso|end_iso|procedimento]
+   Exemplo: [AGENDAR:2025-04-01T09:00:00-03:00|2025-04-01T10:00:00-03:00|Limpeza dental]
+4. Se não houver horários disponíveis na seção, informe que não há horários no momento e ofereça encaminhar para atendente humano.
+"""
 
     prompt = f"""Você é {bot_name}, um assistente virtual da {clinic_name}.
 
@@ -65,9 +75,9 @@ def montar_prompt(clinica: Any) -> str:
 
 ## Regras fixas (obrigatórias)
 {regras}
-
+{agendamento}
 ## Objetivo
-Atender pacientes com acolhimento, esclarecer dúvidas gerais e ajudar com agendamento/triagem administrativa, sempre seguindo as regras acima.
+Atender pacientes com acolhimento, esclarecer dúvidas gerais e realizar agendamentos, sempre seguindo as regras acima.
 """
 
     return prompt.strip() + "\n"
