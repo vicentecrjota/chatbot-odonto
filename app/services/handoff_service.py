@@ -6,6 +6,7 @@ import logging
 import re
 
 from app.database import get_supabase_client
+from app.services.meta_service import send_whatsapp_message
 
 logger = logging.getLogger(__name__)
 
@@ -97,8 +98,54 @@ def esta_em_handoff(phone: str, clinic_id: str) -> bool:
     return data[0].get("status") == "human_takeover"
 
 
+def _buscar_clinic(clinic_id: str) -> dict:
+    sb = get_supabase_client()
+    resp = (
+        sb.table("clinics")
+        .select("reception_phone, whatsapp_phone_number_id, name")
+        .eq("id", clinic_id)
+        .limit(1)
+        .execute()
+    )
+    data = getattr(resp, "data", None)
+    if data and isinstance(data, list) and data[0]:
+        return data[0]
+    return {}
+
+
+def _enviar_alerta_recepcao(
+    clinic: dict,
+    patient_phone: str,
+    gatilho: str,
+) -> None:
+    """Envia alerta de handoff para o número da recepção da clínica."""
+    reception_phone = clinic.get("reception_phone")
+    phone_number_id = clinic.get("whatsapp_phone_number_id")
+    clinic_name = clinic.get("name", "Clínica")
+
+    if not reception_phone or not phone_number_id:
+        logger.warning(
+            "Alerta de handoff não enviado: reception_phone ou phone_number_id ausente para clinic_id"
+        )
+        return
+
+    mensagem = (
+        f"🔔 *Atendimento necessário — {clinic_name}*\n\n"
+        f"Paciente: +{patient_phone}\n"
+        f"Motivo: {gatilho}\n\n"
+        "O bot encaminhou este paciente para atendimento humano. "
+        "Por favor, assuma a conversa."
+    )
+
+    try:
+        send_whatsapp_message(phone_number_id, reception_phone, mensagem)
+        logger.info("Alerta de handoff enviado para recepção: %s", reception_phone)
+    except Exception:
+        logger.exception("Erro ao enviar alerta de handoff para recepção")
+
+
 def marcar_handoff(phone: str, clinic_id: str, gatilho: str) -> None:
-    """Marca a conversa como human_takeover no banco."""
+    """Marca a conversa como human_takeover e notifica a recepção."""
     sb = get_supabase_client()
     try:
         sb.table("conversations").update({"status": "human_takeover"}).eq(
@@ -110,6 +157,10 @@ def marcar_handoff(phone: str, clinic_id: str, gatilho: str) -> None:
         )
     except Exception:
         logger.exception("Erro ao marcar handoff para phone=%s", phone)
+        return
+
+    clinic = _buscar_clinic(clinic_id)
+    _enviar_alerta_recepcao(clinic, phone, gatilho)
 
 
 # ---------------------------------------------------------------------------
