@@ -51,6 +51,24 @@ def montar_prompt(clinica: Any) -> str:
         ]
     )
 
+    handoff = """
+## Transferência para atendente humano
+Quando identificar qualquer situação abaixo, adicione a tag [TRANSFERIR:motivo] ao final da resposta (invisível ao paciente):
+- Paciente com dor intensa, sangramento, trauma ou emergência odontológica
+- Paciente frustrado, repetindo a mesma dúvida sem resolução, ou usando linguagem negativa/agressiva
+- Assuntos de convênio, plano odontológico, reembolso, reclamação ou questões jurídicas
+- Quando o bot não tiver informação suficiente para resolver após 2 tentativas
+- Qualquer situação em que um humano resolveria melhor
+
+Exemplos:
+  [TRANSFERIR:emergência - dor intensa relatada]
+  [TRANSFERIR:frustração detectada]
+  [TRANSFERIR:convênio/plano - requer atendente]
+  [TRANSFERIR:baixa confiança nas respostas]
+
+Antes de adicionar a tag, avise o paciente de forma empática: "Vou encaminhar você para um de nossos atendentes que poderá te ajudar melhor."
+"""
+
     agendamento = """
 ## Fluxo de agendamento (siga esta ordem exata)
 1. Quando o paciente quiser agendar: pergunte APENAS qual procedimento ou especialidade deseja.
@@ -62,6 +80,7 @@ def montar_prompt(clinica: Any) -> str:
 """
 
     prompt = f"""Você é {bot_name}, um assistente virtual da {clinic_name}.
+{handoff}
 
 ## Identidade
 - Nome do bot: {bot_name}
