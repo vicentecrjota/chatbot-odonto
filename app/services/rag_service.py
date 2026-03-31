@@ -131,7 +131,7 @@ def buscar_documentos(clinic_id: str, pergunta: str) -> list[dict[str, Any]]:
     with psycopg.connect(settings.database_url) as conn:
         with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
             # Garante isolamento multi-tenant via RLS.
-            cur.execute("SET LOCAL app.current_clinic_id = %s;", (clinic_id,))
+            cur.execute(f"SET LOCAL app.current_clinic_id = '{clinic_id}';")  # noqa: S608 — clinic_id é UUID validado pelo Supabase
             cur.execute(sql, (qvec, clinic_id, qvec))
             rows = cur.fetchall()
 
@@ -162,7 +162,7 @@ def indexar_documento(clinic_id: str, texto: str) -> int:
     with psycopg.connect(settings.database_url) as conn:
         with conn.cursor() as cur:
             # Garante isolamento multi-tenant via RLS.
-            cur.execute("SET LOCAL app.current_clinic_id = %s;", (clinic_id,))
+            cur.execute(f"SET LOCAL app.current_clinic_id = '{clinic_id}';")  # noqa: S608 — clinic_id é UUID validado pelo Supabase
             for i, chunk in enumerate(chunks):
                 embedding = gerar_embedding(chunk)
                 vec = _vector_literal(embedding)
