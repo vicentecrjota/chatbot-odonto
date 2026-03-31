@@ -12,3 +12,5 @@ google-auth>=2.23.0
 pypdf>=4.0.0
 python-multipart>=0.0.9
 apscheduler>=3.10.0
+pytest>=8.0.0
+pytest-mock>=3.14.0
