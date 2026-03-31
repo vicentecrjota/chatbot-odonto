@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     database_url: Optional[str] = None
     environment: str = "development"
     google_credentials: Optional[str] = None
+    api_key: Optional[SecretStr] = None
 
 
 @lru_cache

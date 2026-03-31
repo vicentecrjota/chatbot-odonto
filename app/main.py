@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.api.clinics import router as clinics_router
 from app.api.health import router as health_router
 from app.api.webhooks import router as webhooks_router
 
@@ -49,6 +50,7 @@ def create_app() -> FastAPI:
 
     application.include_router(health_router, tags=["Health"])
     application.include_router(webhooks_router, tags=["Webhooks"])
+    application.include_router(clinics_router)
 
     return application
 
