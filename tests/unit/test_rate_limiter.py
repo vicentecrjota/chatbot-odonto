@@ -25,14 +25,14 @@ def test_phones_diferentes_sao_independentes():
 
 
 def test_janela_expirada_libera_phone():
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     rl = RateLimiter(max_requests=1, window_minutes=60)
     phone = "5511777777777"
     rl.is_allowed(phone)  # usa o slot
 
     # Simula timestamp antigo (fora da janela)
-    rl.requests[phone] = [datetime.utcnow() - timedelta(hours=2)]
+    rl.requests[phone] = [datetime.now(timezone.utc) - timedelta(hours=2)]
 
     assert rl.is_allowed(phone) is True
 

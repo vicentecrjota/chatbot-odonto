@@ -1,7 +1,7 @@
 """Proteção contra abuso por rate limiting por telefone."""
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 class RateLimiter:
@@ -12,7 +12,7 @@ class RateLimiter:
 
     def is_allowed(self, phone: str) -> bool:
         """Retorna True se o telefone pode enviar mensagem."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cutoff = now - self.window
 
         self.requests[phone] = [
