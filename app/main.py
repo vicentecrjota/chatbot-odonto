@@ -16,6 +16,7 @@ from app.api.dashboard import router as dashboard_router
 from app.api.health import router as health_router
 from app.api.lgpd import router as lgpd_router
 from app.api.webhooks import router as webhooks_router
+from app.services.cleanup_service import limpar_conversas_expiradas
 from app.services.reminder_service import enviar_lembretes_pendentes
 
 logger = logging.getLogger("chatbot_odonto.http")
@@ -46,6 +47,13 @@ async def lifespan(application: FastAPI):  # type: ignore[type-arg]
         trigger="interval",
         hours=1,
         id="reminders",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        limpar_conversas_expiradas,
+        trigger="interval",
+        hours=24,
+        id="cleanup",
         replace_existing=True,
     )
     scheduler.start()

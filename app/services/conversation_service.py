@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.database import get_supabase_client
@@ -10,6 +11,11 @@ from app.database import get_supabase_client
 logger = logging.getLogger(__name__)
 
 _HISTORY_LIMIT = 10  # últimas N mensagens (5 trocas)
+_TTL_DAYS = 30       # TTL rolling: cada mensagem renova por 30 dias
+
+
+def _expires_at() -> str:
+    return (datetime.now(timezone.utc) + timedelta(days=_TTL_DAYS)).isoformat()
 
 
 def carregar_historico(phone: str, clinic_id: str) -> list[dict[str, str]]:
@@ -69,9 +75,10 @@ def salvar_mensagens(
         if existing:
             current: list = existing.get("messages", []) or []
             updated = current + new_entries
-            sb.table("conversations").update({"messages": updated}).eq(
-                "id", existing["id"]
-            ).execute()
+            sb.table("conversations").update({
+                "messages": updated,
+                "expires_at": _expires_at(),
+            }).eq("id", existing["id"]).execute()
         else:
             sb.table("conversations").insert(
                 {
@@ -79,6 +86,7 @@ def salvar_mensagens(
                     "patient_phone": phone,
                     "messages": new_entries,
                     "status": "active",
+                    "expires_at": _expires_at(),
                 }
             ).execute()
     except Exception:
