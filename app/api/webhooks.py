@@ -17,6 +17,7 @@ from app.core.rate_limiter import rate_limiter
 from app.database import get_supabase_client
 from app.services.message_pipeline import processar_mensagem
 from app.services.meta_service import send_instagram_message, send_whatsapp_message
+from app.services.whisper_service import transcrever_audio
 
 logger = logging.getLogger(__name__)
 
@@ -88,20 +89,28 @@ def _clinic_id_by_instagram(page_id: str) -> str | None:
     return None
 
 
-def _extract_whatsapp(body: dict[str, Any]) -> list[tuple[str, str, str]]:
-    """Extrai lista de (phone, message_text, phone_number_id) do payload Meta."""
+def _extract_whatsapp(body: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extrai mensagens de texto e áudio do payload Meta.
+    Cada item: {phone, text, phone_number_id, audio_id}
+    """
     results = []
     for entry in body.get("entry", []):
         for change in entry.get("changes", []):
             value = change.get("value", {})
             phone_number_id = value.get("metadata", {}).get("phone_number_id", "")
             for msg in value.get("messages", []):
-                if msg.get("type") != "text":
-                    continue
+                msg_type = msg.get("type")
                 phone = msg.get("from", "")
-                text = msg.get("text", {}).get("body", "")
-                if phone and text and phone_number_id:
-                    results.append((phone, text, phone_number_id))
+                if not phone or not phone_number_id:
+                    continue
+                if msg_type == "text":
+                    text = msg.get("text", {}).get("body", "")
+                    if text:
+                        results.append({"phone": phone, "text": text, "phone_number_id": phone_number_id, "audio_id": None})
+                elif msg_type == "audio":
+                    audio_id = msg.get("audio", {}).get("id", "")
+                    if audio_id:
+                        results.append({"phone": phone, "text": None, "phone_number_id": phone_number_id, "audio_id": audio_id})
     return results
 
 
@@ -143,9 +152,28 @@ async def receive_whatsapp_message(request: Request) -> dict:
     if not mensagens:
         return {"status": "ok"}
 
-    for phone, text, phone_number_id in mensagens:
+    for item in mensagens:
+        phone = item["phone"]
+        text = item["text"]
+        phone_number_id = item["phone_number_id"]
+        audio_id = item["audio_id"]
+
         if not rate_limiter.is_allowed(phone):
             logger.warning("Rate limit atingido para phone=%s", phone)
+            continue
+
+        # Se for áudio, transcreve antes de processar
+        if audio_id:
+            try:
+                text = await asyncio.get_event_loop().run_in_executor(
+                    None, transcrever_audio, audio_id
+                )
+                logger.info("Áudio transcrito para %s: %.100s", phone, text)
+            except Exception:
+                logger.exception("Erro ao transcrever áudio de %s", phone)
+                continue
+
+        if not text:
             continue
 
         clinic_id = await asyncio.get_event_loop().run_in_executor(
