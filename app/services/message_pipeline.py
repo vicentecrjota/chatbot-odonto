@@ -10,6 +10,7 @@ from app.prompts.base_prompt import montar_prompt
 from app.services.calendar_service import buscar_slots_disponiveis, criar_evento
 from app.services.conversation_service import carregar_historico, salvar_mensagens
 from app.services.llm_service import chamar_llm
+from app.services.lgpd_service import verificar_consentimento
 from app.services.handoff_service import (
     checar_cenario_complexo,
     checar_loop,
@@ -102,6 +103,11 @@ def processar_mensagem(phone: str, message: str, clinic_id: str) -> str:
     3) Busca documentos (RAG)
     4) Chama o LLM e retorna a resposta em texto
     """
+
+    # --- LGPD: consentimento obrigatório na primeira interação ---
+    pode_processar, resposta_lgpd = verificar_consentimento(phone, clinic_id, message)
+    if not pode_processar:
+        return resposta_lgpd
 
     clinic = _clinic_from_supabase(clinic_id)
     clinic_name = clinic.get("name") or "a clínica"
