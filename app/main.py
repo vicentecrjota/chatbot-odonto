@@ -14,6 +14,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.clinics import router as clinics_router
 from app.api.dashboard import router as dashboard_router
 from app.api.health import router as health_router
+from app.api.lgpd import router as lgpd_router
 from app.api.webhooks import router as webhooks_router
 from app.services.reminder_service import enviar_lembretes_pendentes
 
@@ -74,6 +75,7 @@ def create_app() -> FastAPI:
     application.include_router(webhooks_router, tags=["Webhooks"])
     application.include_router(clinics_router)
     application.include_router(dashboard_router)
+    application.include_router(lgpd_router)
 
     return application
 
