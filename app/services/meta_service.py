@@ -50,6 +50,51 @@ def send_whatsapp_message(phone_number_id: str, to: str, text: str) -> None:
         raise
 
 
+def send_whatsapp_template(
+    phone_number_id: str,
+    to: str,
+    template_name: str,
+    parameters: list[str],
+    language_code: str = "pt_BR",
+) -> None:
+    """Envia mensagem via template aprovado pela Meta (necessário fora da janela de 24h)."""
+    url = f"{_META_GRAPH_BASE}/{phone_number_id}/messages"
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {"code": language_code},
+            "components": [
+                {
+                    "type": "body",
+                    "parameters": [{"type": "text", "text": p} for p in parameters],
+                }
+            ],
+        },
+    }
+    headers = {"Authorization": f"Bearer {_access_token()}"}
+
+    try:
+        with httpx.Client(timeout=_TIMEOUT) as client:
+            resp = client.post(url, json=payload, headers=headers)
+            resp.raise_for_status()
+        logger.info("WhatsApp template '%s' sent to %s", template_name, to)
+    except httpx.HTTPStatusError as exc:
+        logger.error(
+            "Erro ao enviar template '%s' para %s: %s %s",
+            template_name,
+            to,
+            exc.response.status_code,
+            exc.response.text,
+        )
+        raise
+    except httpx.RequestError as exc:
+        logger.error("Falha de conexão ao enviar template para %s: %s", to, exc)
+        raise
+
+
 def send_instagram_message(recipient_id: str, text: str) -> None:
     """Envia mensagem de texto via Instagram Messaging API."""
     url = f"{_META_GRAPH_BASE}/me/messages"

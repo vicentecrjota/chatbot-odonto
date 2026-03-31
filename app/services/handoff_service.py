@@ -6,7 +6,7 @@ import logging
 import re
 
 from app.database import get_supabase_client
-from app.services.meta_service import send_whatsapp_message
+from app.services.meta_service import send_whatsapp_template
 
 logger = logging.getLogger(__name__)
 
@@ -129,16 +129,13 @@ def _enviar_alerta_recepcao(
         )
         return
 
-    mensagem = (
-        f"🔔 *Atendimento necessário — {clinic_name}*\n\n"
-        f"Paciente: +{patient_phone}\n"
-        f"Motivo: {gatilho}\n\n"
-        "O bot encaminhou este paciente para atendimento humano. "
-        "Por favor, assuma a conversa."
-    )
-
     try:
-        send_whatsapp_message(phone_number_id, reception_phone, mensagem)
+        send_whatsapp_template(
+            phone_number_id=phone_number_id,
+            to=reception_phone,
+            template_name="alerta_handoff",
+            parameters=[clinic_name, patient_phone, gatilho],
+        )
         logger.info("Alerta de handoff enviado para recepção: %s", reception_phone)
     except Exception:
         logger.exception("Erro ao enviar alerta de handoff para recepção")
