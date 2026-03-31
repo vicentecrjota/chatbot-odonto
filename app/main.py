@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -105,3 +106,14 @@ logging.basicConfig(
 )
 
 app = create_app()
+
+
+@app.get("/", response_class=HTMLResponse)
+async def facebook_domain_verification() -> str:
+    return """<!DOCTYPE html>
+<html>
+<head>
+<meta name="facebook-domain-verification" content="8qrjvgr0ztorqsowu2amx5rpdqqz58" />
+</head>
+<body></body>
+</html>"""
