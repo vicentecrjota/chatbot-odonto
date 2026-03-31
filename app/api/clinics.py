@@ -144,6 +144,27 @@ async def upload_documento(
     return {"clinic_id": clinic_id, "filename": file.filename, "chunks_indexed": chunks}
 
 
+@router.get("/{clinic_id}/documents", dependencies=[Depends(require_api_key)])
+def listar_documentos(clinic_id: str) -> list[dict]:
+    """Lista todos os documentos RAG de uma clínica (sem o campo embedding)."""
+    sb = get_supabase_client()
+    resp = (
+        sb.table("rag_documents")
+        .select("id, content, metadata")
+        .eq("clinic_id", clinic_id)
+        .order("id")
+        .execute()
+    )
+    return getattr(resp, "data", []) or []
+
+
+@router.delete("/{clinic_id}/documents/{document_id}", dependencies=[Depends(require_api_key)], status_code=204)
+def deletar_documento(clinic_id: str, document_id: str) -> None:
+    """Remove um documento RAG específico."""
+    sb = get_supabase_client()
+    sb.table("rag_documents").delete().eq("clinic_id", clinic_id).eq("id", document_id).execute()
+
+
 @router.delete("/{clinic_id}/documents", dependencies=[Depends(require_api_key)], status_code=204)
 def deletar_documentos(clinic_id: str) -> None:
     """Remove todos os documentos RAG de uma clínica."""
