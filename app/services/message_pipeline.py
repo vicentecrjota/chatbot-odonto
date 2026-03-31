@@ -163,12 +163,12 @@ def processar_mensagem(phone: str, message: str, clinic_id: str) -> str:
     # Busca slots do Google Calendar se a clínica tiver calendário configurado
     slots_text = ""
     calendar_id = clinic.get("google_calendar_id")
+    tz = "America/Sao_Paulo"
     if calendar_id:
+        rag_config = clinic.get("rag_config") or {}
+        if isinstance(rag_config, dict):
+            tz = rag_config.get("business_hours", {}).get("timezone", tz)
         try:
-            tz = "America/Sao_Paulo"
-            rag_config = clinic.get("rag_config") or {}
-            if isinstance(rag_config, dict):
-                tz = rag_config.get("business_hours", {}).get("timezone", tz)
             slots = buscar_slots_disponiveis(calendar_id, timezone=tz, num_slots=2)
             if slots:
                 opcoes = "\n".join(f"- Opção {i+1}: {s['label']} (start={s['start']}, end={s['end']})" for i, s in enumerate(slots))
@@ -203,14 +203,38 @@ def processar_mensagem(phone: str, message: str, clinic_id: str) -> str:
     if transferir:
         marcar_handoff(phone, clinic_id, motivo or "llm_detectado")
 
-    # Se o LLM confirmou agendamento, tenta criar o evento
+    # Se o LLM confirmou agendamento, cria o evento no Calendar e salva no banco
     if calendar_id and "[AGENDAR:" in resposta:
         try:
             import re
             m = re.search(r"\[AGENDAR:([^|]+)\|([^|]+)\|([^\]]+)\]", resposta)
             if m:
-                start_iso, end_iso, procedure = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+                start_iso = m.group(1).strip()
+                end_iso = m.group(2).strip()
+                procedure = m.group(3).strip()
+
                 criar_evento(calendar_id, start_iso, end_iso, procedure, phone, tz)
+
+                # Salva na tabela appointments para o sistema de lembretes
+                sb = get_supabase_client()
+                pat_resp = (
+                    sb.table("patients")
+                    .select("id")
+                    .eq("clinic_id", clinic_id)
+                    .eq("phone", phone)
+                    .limit(1)
+                    .execute()
+                )
+                pat_data = getattr(pat_resp, "data", None)
+                if pat_data and pat_data[0]:
+                    sb.table("appointments").insert({
+                        "clinic_id": clinic_id,
+                        "patient_id": pat_data[0]["id"],
+                        "datetime": start_iso,
+                        "procedure": procedure,
+                        "status": "scheduled",
+                    }).execute()
+
                 resposta = re.sub(r"\[AGENDAR:[^\]]+\]", "", resposta).strip()
         except Exception:
             pass
