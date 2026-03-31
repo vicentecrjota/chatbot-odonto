@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.auth import router as auth_router
+from app.api.simulate import router as simulate_router
 from app.api.clinics import router as clinics_router
 from app.api.dashboard import router as dashboard_router
 from app.api.health import router as health_router
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
     application.include_router(health_router, tags=["Health"])
     application.include_router(webhooks_router, tags=["Webhooks"])
     application.include_router(auth_router)
+    application.include_router(simulate_router)
     application.include_router(clinics_router)
     application.include_router(dashboard_router)
     application.include_router(lgpd_router)
