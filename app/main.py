@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import logging
 import time
+from contextlib import asynccontextmanager
 
+from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.clinics import router as clinics_router
+from app.api.dashboard import router as dashboard_router
 from app.api.health import router as health_router
 from app.api.webhooks import router as webhooks_router
+from app.services.reminder_service import enviar_lembretes_pendentes
 
 logger = logging.getLogger("chatbot_odonto.http")
 
@@ -33,10 +37,28 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         return response
 
 
+@asynccontextmanager
+async def lifespan(application: FastAPI):  # type: ignore[type-arg]
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        enviar_lembretes_pendentes,
+        trigger="interval",
+        hours=1,
+        id="reminders",
+        replace_existing=True,
+    )
+    scheduler.start()
+    logger.info("Scheduler de lembretes iniciado (intervalo: 1h).")
+    yield
+    scheduler.shutdown(wait=False)
+    logger.info("Scheduler de lembretes encerrado.")
+
+
 def create_app() -> FastAPI:
     application = FastAPI(
         title="chatbot-odonto",
         version=_APP_VERSION,
+        lifespan=lifespan,
     )
 
     application.add_middleware(RequestLoggingMiddleware)
@@ -51,6 +73,7 @@ def create_app() -> FastAPI:
     application.include_router(health_router, tags=["Health"])
     application.include_router(webhooks_router, tags=["Webhooks"])
     application.include_router(clinics_router)
+    application.include_router(dashboard_router)
 
     return application
 
