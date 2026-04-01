@@ -108,14 +108,20 @@ logging.basicConfig(
 app = create_app()
 
 
-@app.get("/", response_class=HTMLResponse)
-async def facebook_domain_verification() -> str:
-    return """<!DOCTYPE html>
-<html>
+@app.get("/")
+async def root():
+    return HTMLResponse(
+        content="""<!DOCTYPE html>
+<html lang="pt-BR">
 <head>
+<meta charset="UTF-8">
 <meta name="facebook-domain-verification" content="8qrjvgr0ztorqsowu2amx5rpdqqz58" />
+<title>Vicente Duarte Alberton</title>
 </head>
 <body>
-<p>Vicente Duarte Alberton</p>
+<h1>Vicente Duarte Alberton</h1>
+<p>Vicente Duarte Alberton - CNPJ 66.012.699/0001-18</p>
 </body>
-</html>"""
+</html>""",
+        status_code=200,
+    )
