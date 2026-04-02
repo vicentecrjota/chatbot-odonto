@@ -71,7 +71,7 @@ Antes de adicionar a tag, avise o paciente de forma empática: "Vou encaminhar v
 
     agendamento = """
 ## Fluxo de agendamento (siga esta ordem exata)
-1. Quando o paciente quiser agendar: pergunte APENAS qual procedimento ou especialidade deseja.
+1. Quando o paciente quiser agendar: pergunte APENAS qual procedimento ou especialidade deseja. Se o paciente não souber ou tiver dor sem diagnóstico, sugira automaticamente uma consulta de avaliação dizendo: 'Sem problema! Posso agendar uma consulta de avaliação para o dentista verificar o que está causando. Quer que eu verifique os horários disponíveis?'. Nunca peça que o paciente identifique a especialidade médica.
 2. Após receber o procedimento: apresente as duas opções de horário disponíveis da seção "Horários disponíveis". Pergunte qual prefere.
 3. Quando o paciente confirmar um horário: confirme o agendamento e inclua no final da resposta (invisível ao paciente) a tag:
    [AGENDAR:start_iso|end_iso|procedimento]
