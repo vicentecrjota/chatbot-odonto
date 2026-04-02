@@ -116,8 +116,8 @@ def criar_evento(
     procedure: str,
     patient_phone: str,
     timezone: str = "America/Sao_Paulo",
-) -> str:
-    """Cria evento no Google Calendar e retorna o link."""
+) -> dict[str, str]:
+    """Cria evento no Google Calendar e retorna dict com 'htmlLink' e 'event_id'."""
     service = _get_service()
     event: dict[str, Any] = {
         "summary": f"Consulta — {procedure}",
@@ -126,4 +126,18 @@ def criar_evento(
         "end": {"dateTime": end_iso, "timeZone": timezone},
     }
     created = service.events().insert(calendarId=calendar_id, body=event).execute()
-    return created.get("htmlLink", "")
+    return {
+        "htmlLink": created.get("htmlLink", ""),
+        "event_id": created.get("id", ""),
+    }
+
+
+def cancelar_evento(calendar_id: str, event_id: str) -> bool:
+    """Cancela (deleta) um evento no Google Calendar. Retorna True se bem-sucedido."""
+    try:
+        service = _get_service()
+        service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+        return True
+    except Exception as exc:
+        logger.warning("Erro ao cancelar evento %s no Calendar: %s", event_id, exc)
+        return False

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, time as dtime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.database import get_supabase_client
 from app.prompts.base_prompt import montar_prompt
-from app.services.calendar_service import buscar_slots_disponiveis, criar_evento
+from app.services.calendar_service import buscar_slots_disponiveis, criar_evento, cancelar_evento
 from app.services.conversation_service import carregar_historico, salvar_mensagens
 from app.services.llm_service import chamar_llm
 from app.services.lgpd_service import verificar_consentimento
@@ -21,6 +23,38 @@ from app.services.handoff_service import (
 )
 from app.services.patient_service import atualizar_contexto_paciente, carregar_contexto_paciente
 from app.services.rag_service import RagServiceError, buscar_documentos
+
+
+def _buscar_agendamentos_futuros(phone: str, clinic_id: str) -> list[dict[str, Any]]:
+    """Retorna agendamentos futuros com status 'scheduled' para o paciente."""
+    try:
+        sb = get_supabase_client()
+        pat_resp = (
+            sb.table("patients")
+            .select("id")
+            .eq("clinic_id", clinic_id)
+            .eq("phone", phone)
+            .limit(1)
+            .execute()
+        )
+        pat_data = getattr(pat_resp, "data", None)
+        if not pat_data:
+            return []
+        patient_id = pat_data[0]["id"]
+        now_iso = datetime.utcnow().isoformat()
+        resp = (
+            sb.table("appointments")
+            .select("id, datetime, procedure, status, calendar_event_id")
+            .eq("clinic_id", clinic_id)
+            .eq("patient_id", patient_id)
+            .eq("status", "scheduled")
+            .gte("datetime", now_iso)
+            .order("datetime")
+            .execute()
+        )
+        return getattr(resp, "data", None) or []
+    except Exception:
+        return []
 
 
 def _clinic_from_supabase(clinic_id: str) -> dict[str, Any]:
@@ -66,8 +100,6 @@ def _within_business_hours(clinic: dict[str, Any]) -> bool:
     now = datetime.now()
     if tz_name:
         try:
-            from zoneinfo import ZoneInfo
-
             now = datetime.now(tz=ZoneInfo(str(tz_name)))
         except Exception:
             # fallback: mantém horário local
@@ -183,7 +215,27 @@ def processar_mensagem(phone: str, message: str, clinic_id: str) -> str:
         except Exception:
             pass  # Segue sem slots se o calendário falhar
 
-    system_prompt = montar_prompt(clinic) + contexto_text + slots_text + docs_text
+    # Busca agendamentos futuros do paciente para o fluxo de cancelamento
+    agendamentos_text = ""
+    agendamentos_futuros = _buscar_agendamentos_futuros(phone, clinic_id)
+    if agendamentos_futuros:
+        tz_zone = ZoneInfo(tz)
+        linhas = []
+        for a in agendamentos_futuros:
+            try:
+                dt = datetime.fromisoformat(a["datetime"]).astimezone(tz_zone)
+                weekdays = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+                label = f"{weekdays[dt.weekday()]}, {dt.strftime('%d/%m')} às {dt.strftime('%H:%M')}"
+            except Exception:
+                label = a.get("datetime", "")
+            linhas.append(f"- ID: {a['id']} | {a.get('procedure','Consulta')} | {label}")
+        agendamentos_text = (
+            "\n\n## Agendamentos futuros do paciente\n"
+            "Use estes dados quando o paciente quiser cancelar uma consulta.\n"
+            + "\n".join(linhas) + "\n"
+        )
+
+    system_prompt = montar_prompt(clinic) + contexto_text + slots_text + agendamentos_text + docs_text
 
     historico = carregar_historico(phone, clinic_id)
 
@@ -208,14 +260,14 @@ def processar_mensagem(phone: str, message: str, clinic_id: str) -> str:
     # Se o LLM confirmou agendamento, cria o evento no Calendar e salva no banco
     if calendar_id and "[AGENDAR:" in resposta:
         try:
-            import re
             m = re.search(r"\[AGENDAR:([^|]+)\|([^|]+)\|([^\]]+)\]", resposta)
             if m:
                 start_iso = m.group(1).strip()
                 end_iso = m.group(2).strip()
                 procedure = m.group(3).strip()
 
-                criar_evento(calendar_id, start_iso, end_iso, procedure, phone, tz)
+                evento = criar_evento(calendar_id, start_iso, end_iso, procedure, phone, tz)
+                cal_event_id = evento.get("event_id", "")
 
                 # Salva na tabela appointments para o sistema de lembretes
                 sb = get_supabase_client()
@@ -235,9 +287,36 @@ def processar_mensagem(phone: str, message: str, clinic_id: str) -> str:
                         "datetime": start_iso,
                         "procedure": procedure,
                         "status": "scheduled",
+                        "calendar_event_id": cal_event_id,
                     }).execute()
 
                 resposta = re.sub(r"\[AGENDAR:[^\]]+\]", "", resposta).strip()
+        except Exception:
+            pass
+
+    # Se o LLM confirmou cancelamento, remove do Calendar e atualiza Supabase
+    if "[CANCELAR:" in resposta:
+        try:
+            m = re.search(r"\[CANCELAR:([^\]]+)\]", resposta)
+            if m:
+                appointment_id = m.group(1).strip()
+                sb = get_supabase_client()
+                appt_resp = (
+                    sb.table("appointments")
+                    .select("id, calendar_event_id")
+                    .eq("id", appointment_id)
+                    .eq("clinic_id", clinic_id)
+                    .limit(1)
+                    .execute()
+                )
+                appt_data = getattr(appt_resp, "data", None)
+                if appt_data and appt_data[0]:
+                    cal_event_id = appt_data[0].get("calendar_event_id") or ""
+                    if calendar_id and cal_event_id:
+                        cancelar_evento(calendar_id, cal_event_id)
+                    sb.table("appointments").update({"status": "cancelled"}).eq("id", appointment_id).execute()
+
+                resposta = re.sub(r"\[CANCELAR:[^\]]+\]", "", resposta).strip()
         except Exception:
             pass
 

@@ -72,6 +72,20 @@ Exemplos:
 Antes de adicionar a tag, avise o paciente de forma empática: "Vou encaminhar você para um de nossos atendentes que poderá te ajudar melhor."
 """
 
+    cancelamento = """
+## Fluxo de cancelamento de consulta (siga esta ordem exata)
+1. Quando o paciente quiser cancelar: verifique a seção "Agendamentos futuros do paciente" no contexto.
+2. Se houver agendamentos: liste-os de forma amigável e pergunte qual deseja cancelar.
+   Exemplo: "Encontrei as seguintes consultas marcadas:\n1. Limpeza dental — Segunda, 05/05 às 09:00\n2. Avaliação — Quarta, 07/05 às 14:00\nQual delas você quer cancelar?"
+3. Quando o paciente confirmar qual consulta cancelar: peça confirmação explícita.
+   Exemplo: "Confirma o cancelamento da Limpeza dental de Segunda, 05/05 às 09:00? Essa ação não pode ser desfeita."
+4. Após a confirmação, informe que foi cancelado e inclua no final da resposta (invisível ao paciente) a tag:
+   [CANCELAR:appointment_id]
+   Exemplo: [CANCELAR:abc123-def-456]
+5. Se não houver agendamentos futuros: informe que não há consultas ativas para cancelar e ofereça ajuda para agendar.
+6. Nunca cancele sem pedir confirmação explícita do paciente.
+"""
+
     agendamento = """
 ## Fluxo de agendamento (siga esta ordem exata)
 1. Quando o paciente quiser agendar: pergunte APENAS qual procedimento ou especialidade deseja. Se o paciente não souber ou tiver dor sem diagnóstico, sugira automaticamente uma consulta de avaliação dizendo: 'Sem problema! Posso agendar uma consulta de avaliação para o dentista verificar o que está causando. Quer que eu verifique os horários disponíveis?'. Nunca peça que o paciente identifique a especialidade médica.
@@ -107,6 +121,7 @@ Antes de adicionar a tag, avise o paciente de forma empática: "Vou encaminhar v
 ## Regras fixas (obrigatórias)
 {regras}
 {handoff}
+{cancelamento}
 {agendamento}
 ## Fluxo pós-agendamento
 - Após confirmar o horário, apresente um resumo: "Então ficou marcado: [procedimento], [dia] às [hora]. Correto?"
