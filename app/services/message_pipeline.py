@@ -107,6 +107,8 @@ def processar_mensagem(phone: str, message: str, clinic_id: str) -> str:
     # --- LGPD: consentimento obrigatório na primeira interação ---
     pode_processar, resposta_lgpd = verificar_consentimento(phone, clinic_id, message)
     if not pode_processar:
+        if resposta_lgpd:
+            salvar_mensagens(phone, clinic_id, message, resposta_lgpd)
         return resposta_lgpd
 
     clinic = _clinic_from_supabase(clinic_id)

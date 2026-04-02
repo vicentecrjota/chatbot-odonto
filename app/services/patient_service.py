@@ -11,6 +11,9 @@ from app.services.llm_service import chamar_llm
 
 logger = logging.getLogger(__name__)
 
+AWAITING_PATIENT_NAME_METADATA_KEY = "awaiting_patient_name"
+_MAX_DISPLAY_NAME_LEN = 200
+
 _EXTRACTION_PROMPT = """Analise a conversa abaixo e extraia APENAS informações clínicas relevantes sobre o paciente.
 Retorne SOMENTE um objeto JSON válido, sem explicações, sem markdown.
 Use null para campos não mencionados. Não invente, não infira — apenas o que foi explicitamente dito.
@@ -44,6 +47,56 @@ def _extrair_contexto(user_message: str, bot_response: str) -> dict[str, Any] | 
     except Exception:
         logger.warning("Falha ao extrair contexto clínico; seguindo sem atualização.")
         return None
+
+
+def _metadata_as_dict(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, dict):
+        return dict(raw)
+    return {}
+
+
+def marcar_aguardando_nome_apos_lgpd(patient_id: str) -> None:
+    """Após aceite do consentimento, marca que o próximo passo é coletar o nome."""
+    sb = get_supabase_client()
+    resp = (
+        sb.table("patients")
+        .select("metadata")
+        .eq("id", patient_id)
+        .limit(1)
+        .execute()
+    )
+    data = getattr(resp, "data", None)
+    meta: dict[str, Any] = {}
+    if data and isinstance(data, list) and data[0]:
+        meta = _metadata_as_dict(data[0].get("metadata"))
+    meta[AWAITING_PATIENT_NAME_METADATA_KEY] = True
+    sb.table("patients").update({"metadata": meta}).eq("id", patient_id).execute()
+
+
+def salvar_nome_apos_consentimento_lgpd(patient_id: str, nome: str) -> None:
+    """
+    Persiste o nome informado pelo paciente após o consentimento LGPD
+    e remove a flag de coleta pendente em metadata.
+    """
+    nome_limpo = nome.strip()[:_MAX_DISPLAY_NAME_LEN]
+    if not nome_limpo:
+        return
+
+    sb = get_supabase_client()
+    resp = (
+        sb.table("patients")
+        .select("metadata")
+        .eq("id", patient_id)
+        .limit(1)
+        .execute()
+    )
+    meta: dict[str, Any] = {}
+    data = getattr(resp, "data", None)
+    if data and isinstance(data, list) and data[0]:
+        meta = _metadata_as_dict(data[0].get("metadata"))
+    meta.pop(AWAITING_PATIENT_NAME_METADATA_KEY, None)
+    sb.table("patients").update({"name": nome_limpo, "metadata": meta}).eq("id", patient_id).execute()
+    logger.info("Nome do paciente salvo após LGPD: patient_id=%s", patient_id)
 
 
 def _upsert_patient(phone: str, clinic_id: str) -> str | None:
