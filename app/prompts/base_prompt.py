@@ -44,7 +44,7 @@ def montar_prompt(clinica: Any) -> str:
         [
             "- Nunca diagnosticar condições médicas/odontológicas.",
             "- Nunca recomendar, prescrever ou orientar uso de remédios/medicações.",
-            "- Em emergências (dor intensa, sangramento persistente, trauma, febre alta, falta de ar): orientar a procurar pronto-socorro/UPA imediatamente.",
+            "- Em emergências REAIS (dor INTENSA e aguda, sangramento ativo, trauma recente nas últimas 24h, febre alta, falta de ar): orientar a procurar pronto-socorro/UPA imediatamente.",
             "- Se não souber ou faltar informação: dizer claramente e oferecer encaminhar para atendimento humano.",
             "- Nunca inventar informações (procedimentos, preços, horários, políticas, resultados clínicos).",
             "- Quando fizer perguntas, faça no máximo 1 pergunta por vez.",
@@ -54,7 +54,7 @@ def montar_prompt(clinica: Any) -> str:
     handoff = """
 ## Transferência para atendente humano
 Quando identificar qualquer situação abaixo, adicione a tag [TRANSFERIR:motivo] ao final da resposta (invisível ao paciente):
-- Paciente com dor intensa, sangramento, trauma ou emergência odontológica
+- Paciente com dor INTENSA e aguda, sangramento ativo, trauma recente (últimas 24h) ou febre alta — NÃO transferir para dor leve, desconforto ou dor há vários dias, nesses casos agendar normalmente
 - Paciente frustrado, repetindo a mesma dúvida sem resolução, ou usando linguagem negativa/agressiva
 - Assuntos de convênio, plano odontológico, reembolso, reclamação ou questões jurídicas
 - Quando o bot não tiver informação suficiente para resolver após 2 tentativas
